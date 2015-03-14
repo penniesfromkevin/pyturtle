@@ -49,7 +49,7 @@ SETTINGS = {
 class Turtle(pygame.sprite.Sprite):
     """Controllable turtle.
     """
-    def __init__(self, board_size=BOARD_SIZE, speed=DEFAULT_SPEED):
+    def __init__(self, board=None, speed=DEFAULT_SPEED):
         """Initialize the turtle.
 
         Args:
@@ -60,18 +60,20 @@ class Turtle(pygame.sprite.Sprite):
             print('WARNING: You should initialize PyGame first.')
             init()
         pygame.sprite.Sprite.__init__(self)
-        self._board_size = board_size
         self._keys = []
+
         self.angle = 0
         self.color = 'red'
         self.bg_color = 'black'
         self.speed = speed
         self.thickness = 3
         self.pen = False
-        self.x_pos = self._board_size[0] // 2
-        self.y_pos = self._board_size[1] // 2
 
-        self.board = pygame.display.set_mode(self._board_size)
+        if board:
+            self.board = board
+        else:
+            self.board = pygame.display.set_mode(BOARD_SIZE)
+
         try:
             image_object = pygame.image.load(DEFAULT_IMAGE).convert_alpha()
         except pygame.error:
@@ -79,6 +81,8 @@ class Turtle(pygame.sprite.Sprite):
             image_object = None
         self._image = self.image = image_object
         self.page = None
+
+        self.reset()
         self.clear()
 
     def update(self):
@@ -95,9 +99,10 @@ class Turtle(pygame.sprite.Sprite):
         self.rect.center = self.x_pos, self.y_pos
 
         self.board.fill(COLORS[self.bg_color])
+        if self.page:
+            self.board.blit(self.page, (0, 0))
         x_off = self.x_pos - self.width // 2
         y_off = self.y_pos - self.height // 2
-        self.board.blit(self.page, (0, 0))
         self.board.blit(self.image, (x_off, y_off))
         pygame.display.flip()
 
@@ -107,7 +112,7 @@ class Turtle(pygame.sprite.Sprite):
         Args:
             color: Name of a supported color.
         """
-        self.page = pygame.Surface(self._board_size)
+        self.page = pygame.Surface(self.board.get_size())
         self.page.set_colorkey(ALPHA_COLOR)
         self.page.fill(ALPHA_COLOR)
         self.update()
@@ -141,7 +146,7 @@ class Turtle(pygame.sprite.Sprite):
         self.update()
 
     def forward(self, units=1):
-        """Moves turtle forward in the direction it is facing.
+        """Move forward in direction faced.
 
         Args:
             units: How many units.
@@ -149,27 +154,10 @@ class Turtle(pygame.sprite.Sprite):
         distance = units * self.speed
         x_new = self.x_pos + distance * math.sin(self.angle * DEG_TO_RAD)
         y_new = self.y_pos - distance * math.cos(self.angle * DEG_TO_RAD)
-
-        if self.pen:
-            if self.color not in COLOR_NAMES:
-                self.color = COLOR_NAMES[0]
-            color = COLORS[self.color]
-            pygame.draw.line(self.page, color, (self.x_pos, self.y_pos),
-                             (x_new, y_new), self.thickness)
         self.move_to(x_new, y_new)
 
-    def pendown(self):
-        """Put pen on page.
-        """
-        self.pen = True
-
-    def penup(self):
-        """Remove pen from page.
-        """
-        self.pen = False
-
     def move(self, units=1):
-        """Moves turtle forward in the direction it is facing.
+        """Move forward in direction faced.
 
         Alias for forward().
 
@@ -178,23 +166,39 @@ class Turtle(pygame.sprite.Sprite):
         """
         self.forward(units)
 
-    def move_to(self, x_pos, y_pos):
-        """Move to a specific (x, y) location.
+    def move_to(self, x_new, y_new):
+        """Move from current (x, y) to new (x, y).
 
         Args:
-            x_pos: X coordinate.
-            y_pos: Y coordinate.
+            x_new: New X coordinate.
+            y_new: New Y coordinate.
         """
-        self.x_pos = x_pos
-        self.y_pos = y_pos
+        if self.pen:
+            if self.color not in COLOR_NAMES:
+                self.color = COLOR_NAMES[0]
+            color = COLORS[self.color]
+            pygame.draw.line(self.page, color, (self.x_pos, self.y_pos),
+                             (x_new, y_new), self.thickness)
+        self.x_pos = x_new
+        self.y_pos = y_new
         self.update()
+
+    def pen_down(self):
+        """Put pen down on page; movement will cause drawing.
+        """
+        self.pen = True
+
+    def pen_up(self):
+        """Remove pen from page; movement will no longer cause drawing.
+        """
+        self.pen = False
 
     def reset(self):
         """Reset location.
         """
         x_0, y_0 = self.board.get_size()
-        x_0 = int(x_0 / 2)
-        y_0 = int(y_0 / 2)
+        x_0 = x_0 // 2
+        y_0 = y_0 // 2
         self.move_to(x_0, y_0)
 
     def get_input(self):
@@ -223,11 +227,11 @@ class Turtle(pygame.sprite.Sprite):
                     if 'f' not in self._keys:
                         self._keys.append('f')
                 elif event.key == pygame.K_DOWN:
-                    self._toggle_pen()
+                    self.toggle_pen()
                 elif event.key == pygame.K_z:
-                    self.color = self._cycle_color()
+                    self.color = self.cycle_color()
                 elif event.key == pygame.K_a:
-                    self.bg_color = self._cycle_color(self.bg_color)
+                    self.bg_color = self.cycle_color(self.bg_color)
                     self.set_bg()
 
                 elif event.key == pygame.K_COMMA:
@@ -237,6 +241,7 @@ class Turtle(pygame.sprite.Sprite):
 
                 elif event.key == pygame.K_SPACE:
                     self.angle = 0
+                    self.update()
                 elif event.key == pygame.K_0:
                     self.reset()
                 elif event.key == pygame.K_BACKSPACE:
@@ -280,7 +285,7 @@ class Turtle(pygame.sprite.Sprite):
 
         return intent
 
-    def _cycle_color(self, color=None):
+    def cycle_color(self, color=None):
         """Increment the color.
 
         Args:
@@ -297,13 +302,21 @@ class Turtle(pygame.sprite.Sprite):
         new_color = COLOR_NAMES[index]
         return new_color
 
-    def _toggle_pen(self):
+    def toggle_pen(self):
         """Toggle pen state.
         """
         self.pen = not self.pen
 
     def ngon(self, sides=3, length=None):
-        """Draw an N-gon.
+        """Draw an N-gon, from 3 to 72 sides.
+
+        Drawing with a number of sides that does not divide evenly into
+        360, such at 7, may result in less-than-perfect polygons.
+
+        Args:
+            sides: Number of sides, from 3 to 72, inclusive.
+            length: Length of each side; if this is not set, the length
+                will be scaled based on speed.
         """
         if sides > 72:
             sides = 72
@@ -311,7 +324,7 @@ class Turtle(pygame.sprite.Sprite):
             sides = 3
         angle = 360 // sides
         if not length:
-            length = int(72 // sides)
+            length = int(self.speed * 36 / sides)
         for _ in range(sides):
             self.right(angle)
             self.forward(length)

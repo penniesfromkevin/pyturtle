@@ -20,15 +20,6 @@ DEFAULT_IMAGE = 'turtle.png'
 THICKNESS_MAX = 20
 DEG_TO_RAD = 0.017453293  # Converts degrees to radians.
 ALPHA_COLOR = (1, 2, 3)
-NGON_KEYS = (
-        pygame.K_3,
-        pygame.K_4,
-        pygame.K_5,
-        pygame.K_6,
-        pygame.K_7,
-        pygame.K_8,
-        pygame.K_9,
-        )
 COLORS = {
         'red': (255, 0, 0),
         'green': (0, 255, 0),
@@ -59,6 +50,7 @@ class Turtle(pygame.sprite.Sprite):
         if not SETTINGS['init']:
             print('WARNING: You should initialize PyGame first.')
             init()
+            print('    For convenience, PyGame has been initialized for you.')
         pygame.sprite.Sprite.__init__(self)
         self._keys = []
 
@@ -115,16 +107,6 @@ class Turtle(pygame.sprite.Sprite):
         self.page = pygame.Surface(self.board.get_size())
         self.page.set_colorkey(ALPHA_COLOR)
         self.page.fill(ALPHA_COLOR)
-        self.update()
-
-    def set_bg(self, color=None):
-        """Set the background color.
-
-        Args:
-            color: A supported color.
-        """
-        if color in COLORS:
-            self.bg_color = color
         self.update()
 
     def left(self, degrees=5):
@@ -229,10 +211,9 @@ class Turtle(pygame.sprite.Sprite):
                 elif event.key == pygame.K_DOWN:
                     self.toggle_pen()
                 elif event.key == pygame.K_z:
-                    self.color = self.cycle_color()
+                    self.change_color()
                 elif event.key == pygame.K_a:
-                    self.bg_color = self.cycle_color(self.bg_color)
-                    self.set_bg()
+                    self.change_bg()
 
                 elif event.key == pygame.K_COMMA:
                     self.left(90)
@@ -258,8 +239,8 @@ class Turtle(pygame.sprite.Sprite):
 
                 elif event.key == pygame.K_c:
                     self.ngon(72)
-                elif event.key in NGON_KEYS:
-                    sides = NGON_KEYS.index(event.key) + 3
+                elif event.key in range(pygame.K_3, pygame.K_9 + 1):
+                    sides = event.key - pygame.K_0
                     self.ngon(sides)
 
                 else:
@@ -284,6 +265,17 @@ class Turtle(pygame.sprite.Sprite):
                 self.forward()
 
         return intent
+
+    def change_bg(self):
+        """Change the background color (by cycling it).
+        """
+        self.bg_color = self.cycle_color(self.bg_color)
+        self.update()
+
+    def change_color(self):
+        """Change the current turtle color (by cycling it).
+        """
+        self.color = self.cycle_color()
 
     def cycle_color(self, color=None):
         """Increment the color.
@@ -359,10 +351,10 @@ def quit():
 def main():
     """Main game.
     """
+    exit_code = 0
     clock = pygame.time.Clock()
     turtle = Turtle()
 
-    exit_code = 0
     game_over = False
     while not game_over:
         intent = turtle.get_input()

@@ -16,7 +16,9 @@ import pygame
 FRAME_RATE = 20
 BOARD_SIZE = (640, 480)
 DEFAULT_SPEED = 4
+DEFAULT_ANGLE = 5
 DEFAULT_IMAGE = 'turtle.png'
+DEFAULT_LENGTH = 72
 THICKNESS_MAX = 20
 DEG_TO_RAD = 0.017453293  # Converts degrees to radians.
 ALPHA_COLOR = (1, 2, 3)
@@ -109,7 +111,7 @@ class Turtle(pygame.sprite.Sprite):
         self.page.fill(ALPHA_COLOR)
         self.update()
 
-    def left(self, degrees=5):
+    def left(self, degrees=DEFAULT_ANGLE):
         """Rotates turtle counter-clockwise.
 
         Args:
@@ -118,7 +120,7 @@ class Turtle(pygame.sprite.Sprite):
         self.angle -= degrees
         self.update()
 
-    def right(self, degrees=5):
+    def right(self, degrees=DEFAULT_ANGLE):
         """Rotates turtle clockwise.
 
         Args:
@@ -147,6 +149,19 @@ class Turtle(pygame.sprite.Sprite):
             units: How many units.
         """
         self.forward(units)
+
+    def back(self, units=1):
+        """Move backward.
+
+        Args:
+            units: How many units.
+        """
+        self.forward(-units)
+
+    def about(self):
+        """Turn 180 degrees (turn around in place).
+        """
+        self.right(180)
 
     def move_to(self, x_new, y_new):
         """Move from current (x, y) to new (x, y).
@@ -237,6 +252,8 @@ class Turtle(pygame.sprite.Sprite):
                     if self.thickness > THICKNESS_MAX:
                         self.thickness = THICKNESS_MAX
 
+                elif event.key == pygame.K_s:
+                    self.star()
                 elif event.key == pygame.K_c:
                     self.ngon(72)
                 elif event.key in range(pygame.K_3, pygame.K_9 + 1):
@@ -317,9 +334,31 @@ class Turtle(pygame.sprite.Sprite):
         angle = 360 // sides
         if not length:
             length = int(self.speed * 36 / sides)
-        for _ in range(sides):
-            self.right(angle)
-            self.forward(length)
+        self.repeat(sides, angle, length)
+
+    def star(self, length=DEFAULT_LENGTH):
+        """Draw a star.
+
+        Args:
+            length: Length of each side.
+        """
+        self.repeat(5, 144, length)
+
+    def repeat(self, times, angle=144, length=DEFAULT_LENGTH, right=True):
+        """Move and turn repeatedly.
+
+        Args:
+            times: How many times to do this.
+            angle: Integer angle to turn.
+            length: Integer length to move.
+            right: Boolean; True for right turns, False for left turns.
+        """
+        for _ in range(times):
+            self.move(length)
+            if right:
+                self.right(angle)
+            else:
+                self.left(angle)
 
     def init(self):
         """Warn wrong scope.

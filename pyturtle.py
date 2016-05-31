@@ -5,13 +5,25 @@ This is intended for both interactive sessions and keyboard control.
 It came about when I was preparing a Python class and wanted to try a
 few things.
 """
-__author__ = 'Kevin (penniesfromkevin@)'
-__copyright__ = 'Copyright (c) 2014-2015, Kevin'
+from __future__ import print_function
 
+import argparse
+import logging
 import math
 import sys
+import time
 
+# http://www.pygame.org
 import pygame
+
+
+__author__ = 'Kevin (penniesfromkevin@)'
+__copyright__ = 'Copyright (c) 2014-2016, Kevin'
+
+
+LOG_LEVELS = ('CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG')
+DEFAULT_LOG_LEVEL = LOG_LEVELS[3]
+LOGGER = logging.getLogger(__name__)
 
 FRAME_RATE = 20
 BOARD_SIZE = (640, 480)
@@ -21,22 +33,17 @@ DEFAULT_IMAGE = 'turtle.png'
 DEFAULT_LENGTH = 72
 THICKNESS_MAX = 20
 DEG_TO_RAD = 0.017453293  # Converts degrees to radians.
-ALPHA_COLOR = (1, 2, 3)
 COLORS = {
-        'red': (255, 0, 0),
-        'green': (0, 255, 0),
-        'blue': (0, 0, 255),
-        'yellow': (255, 255, 0),
-        'magenta': (255, 0, 255),
-        'cyan': (0, 255, 255),
-        'purple': (204, 0, 255),
-        'white': (255, 255, 255),
-        'black': (0, 0, 0),
-        }
-COLOR_NAMES = sorted(COLORS.keys())
-SETTINGS = {
-        'init': False,
-        }
+    'red': (255, 0, 0),
+    'green': (0, 255, 0),
+    'blue': (0, 0, 255),
+    'yellow': (255, 255, 0),
+    'magenta': (255, 0, 255),
+    'cyan': (0, 255, 255),
+    'purple': (204, 0, 255),
+    'white': (255, 255, 255),
+    'black': (0, 0, 0),
+    }
 
 
 class Turtle(pygame.sprite.Sprite):
@@ -49,10 +56,6 @@ class Turtle(pygame.sprite.Sprite):
             board_size: Display surface size; tuple of (width, height).
             speed: Integer speed.  Movement multiplier.
         """
-        if not SETTINGS['init']:
-            print('WARNING: You should initialize PyGame first.')
-            init()
-            print('    For convenience, PyGame has been initialized for you.')
         pygame.sprite.Sprite.__init__(self)
         self._keys = []
 
@@ -62,6 +65,7 @@ class Turtle(pygame.sprite.Sprite):
         self.speed = speed
         self.thickness = 3
         self.pen = False
+        self.x_pos = self.y_pos = 0
 
         if board:
             self.board = board
@@ -74,6 +78,8 @@ class Turtle(pygame.sprite.Sprite):
             print('ERROR: Could not load image %s' % DEFAULT_IMAGE)
             image_object = None
         self._image = self.image = image_object
+        self.width, self.height = self.image.get_size()
+        self.rect = self.image.get_rect()
         self.page = None
 
         self.reset()
@@ -92,7 +98,7 @@ class Turtle(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = self.x_pos, self.y_pos
 
-        self.board.fill(COLORS[self.bg_color])
+        self.board.fill(get_color(self.bg_color))
         if self.page:
             self.board.blit(self.page, (0, 0))
         x_off = self.x_pos - self.width // 2
@@ -100,15 +106,17 @@ class Turtle(pygame.sprite.Sprite):
         self.board.blit(self.image, (x_off, y_off))
         pygame.display.flip()
 
-    def clear(self, color=None):
+    def clear(self, bg_color=None):
         """Clear the draw page with the specified color.
 
         Args:
-            color: Name of a supported color.
+            bg_color: Name of a supported color to use as background.
         """
+        if not bg_color:
+            bg_color = self.bg_color
         self.page = pygame.Surface(self.board.get_size())
-        self.page.set_colorkey(ALPHA_COLOR)
-        self.page.fill(ALPHA_COLOR)
+        self.page.set_colorkey(get_color(bg_color))
+        self.page.fill(get_color(bg_color))
         self.update()
 
     def left(self, degrees=DEFAULT_ANGLE):
@@ -150,7 +158,7 @@ class Turtle(pygame.sprite.Sprite):
         """
         self.forward(units)
 
-    def back(self, units=1):
+    def backward(self, units=1):
         """Move backward.
 
         Args:
@@ -158,7 +166,7 @@ class Turtle(pygame.sprite.Sprite):
         """
         self.forward(-units)
 
-    def about(self):
+    def about_face(self):
         """Turn 180 degrees (turn around in place).
         """
         self.right(180)
@@ -171,9 +179,7 @@ class Turtle(pygame.sprite.Sprite):
             y_new: New Y coordinate.
         """
         if self.pen:
-            if self.color not in COLOR_NAMES:
-                self.color = COLOR_NAMES[0]
-            color = COLORS[self.color]
+            color = get_color(self.color)
             pygame.draw.line(self.page, color, (self.x_pos, self.y_pos),
                              (x_new, y_new), self.thickness)
         self.x_pos = x_new
@@ -295,26 +301,28 @@ class Turtle(pygame.sprite.Sprite):
         self.color = self.cycle_color()
 
     def cycle_color(self, color=None):
-        """Increment the color.
+        """Return the next color in the color cycle.
 
         Args:
-            color: Name of a supported color.
+            color: Name of a supported color, which will be incremented.
 
         Returns:
-            A new color name.
+            The next color name in the list of colors.
         """
-        if color not in COLOR_NAMES:
+        if not color:
             color = self.color
-        index = COLOR_NAMES.index(color) + 1
-        if index >= len(COLOR_NAMES):
+        color_names = sorted(COLORS.keys())
+        index = color_names.index(color) + 1
+        if index >= len(color_names):
             index = 0
-        new_color = COLOR_NAMES[index]
+        new_color = color_names[index]
         return new_color
 
     def toggle_pen(self):
         """Toggle pen state.
         """
         self.pen = not self.pen
+        LOGGER.debug('toggle_pen: pen=%s', self.pen)
 
     def ngon(self, sides=3, length=None):
         """Draw an N-gon, from 3 to 72 sides.
@@ -334,6 +342,7 @@ class Turtle(pygame.sprite.Sprite):
         angle = 360 // sides
         if not length:
             length = int(self.speed * 36 / sides)
+        LOGGER.debug('ngon: sides=%s, length=%s', sides, length)
         self.repeat(sides, angle, length)
 
     def star(self, length=DEFAULT_LENGTH):
@@ -342,6 +351,7 @@ class Turtle(pygame.sprite.Sprite):
         Args:
             length: Length of each side.
         """
+        LOGGER.debug('star: length=%s', length)
         self.repeat(5, 144, length)
 
     def repeat(self, times, angle=144, length=DEFAULT_LENGTH, right=True):
@@ -353,6 +363,8 @@ class Turtle(pygame.sprite.Sprite):
             length: Integer length to move.
             right: Boolean; True for right turns, False for left turns.
         """
+        LOGGER.debug('repeat: times=%s, angle=%s, length=%s, right=%s',
+                     times, angle, length, right)
         for _ in range(times):
             self.move(length)
             if right:
@@ -360,31 +372,96 @@ class Turtle(pygame.sprite.Sprite):
             else:
                 self.left(angle)
 
-    def init(self):
-        """Warn wrong scope.
-        """
-        print('init() is a module-level command.')
 
-    def quit(self):
-        """Warn wrong scope.
-        """
-        print('quit() is a module-level command.')
+def parse_args():
+    """Parse user arguments and return as parser object.
 
-
-def init():
-    """Initialize PyGame.
+    Returns:
+        Parser object with arguments as attributes.
     """
-    if not SETTINGS['init']:
-        pygame.init()
-        SETTINGS['init'] = True
+    parser = argparse.ArgumentParser(description='KPyTurtle.')
+    parser.add_argument(
+        '-L', '--loglevel', choices=LOG_LEVELS, default=DEFAULT_LOG_LEVEL,
+        help='Set the logging level.')
+    args = parser.parse_args()
+    return args
+
+
+def add_color(color_name, rgb_triplet):
+    """Add a new color definition to the existing colors.
+
+    This can also change an existing color definition if the name
+    already exists.
+
+    Args:
+        color_name: Name of the color, preferably cased similar to the
+            existing color names.
+        rgb_triplet: Sequence of three decimal numbers from 0 to 255,
+            with each number in the triplet specifying, in order, the
+            amount of red, green, and blue desired in the new color.
+    """
+    new_definition = []
+    for rgb_part in rgb_triplet:
+        if rgb_part < 0:
+            LOGGER.warning(
+                'add_color: RGB value should be >= 0 (was %s)', rgb_part)
+            rgb_part = 0
+        elif rgb_part > 255:
+            LOGGER.warning(
+                'add_color: RGB value should be <= 255 (was %s)', rgb_part)
+            rgb_part = 255
+        new_definition.append(rgb_part)
+    COLORS[color_name] = tuple(new_definition)
+
+
+def get_color(color_name):
+    """Gets color RGB triplet by name.
+
+    Args:
+        color_name: Name of an existing color.
+
+    Returns:
+        A color RGB triplet, or None if the name could not be found.
+    """
+    if color_name in COLORS:
+        rgb_triplet = COLORS[color_name]
     else:
-        print('PyGame already initialized.')
+        a_color = COLORS.keys()[0]
+        rgb_triplet = COLORS[a_color]
+    return rgb_triplet
 
 
-def quit():
-    """Quit PyGame.
+def sleep(seconds=1):
+    """Wait for a specified number of seconds before continuing.
+
+    Args:
+        seconds: Number of seconds to wait.
     """
+    LOGGER.info('sleep: Sleeping for %s seconds...', seconds)
+    for index in range(seconds, 0, -1):
+        LOGGER.debug(index)
+        time.sleep(1)
+
+
+def start():
+    """Initialize PyGame, and thus KPyturtle.
+    """
+    args = parse_args()
+    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
+                        level=getattr(logging, args.loglevel))
+    LOGGER.debug('start: Initializing KPyturtle.')
+    pygame.init()
+
+
+def end(exit_code=0):
+    """Quit PyGame.
+
+    Args:
+        exit_code: Numeric exit code from 0 to 255 (0 is clean exit).
+    """
+    LOGGER.debug('end: Ending KPyturtle.')
     pygame.quit()
+    sys.exit(exit_code)
 
 
 def main():
@@ -404,7 +481,6 @@ def main():
 
 
 if __name__ == '__main__':
-    init()
-    exit_code = main()
-    quit()
-    sys.exit(exit_code)
+    start()
+    EXIT_CODE = main()
+    end(EXIT_CODE)

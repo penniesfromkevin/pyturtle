@@ -1,10 +1,12 @@
 #!/usr/bin/env python
-import time
-
+"""A simple test of PyTurtle.
+"""
 import pyturtle
 
-if __name__ == '__main__':
-    pyturtle.init()
+
+def main():
+    """The test program.
+    """
     tom = pyturtle.Turtle()
     tom.pen_down()
 
@@ -14,5 +16,15 @@ if __name__ == '__main__':
         tom.change_color()
         tom.change_bg()
 
-    time.sleep(10)
-    pyturtle.quit()
+    pyturtle.add_color('this', (-1, 1000, 345))
+    tom.color = 'this'
+    tom.star()
+
+    pyturtle.sleep(10)
+    return 0
+
+
+if __name__ == '__main__':
+    pyturtle.start()
+    EXIT_CODE = main()
+    pyturtle.end(EXIT_CODE)

@@ -13,12 +13,13 @@ def main():
     for _ in range(8):
         tom.move(20)
         tom.right(45)
-        tom.change_color()
-        tom.change_bg()
+        tom.cycle_pen_color()
+        tom.cycle_bg_color()
 
     pyturtle.add_color('this', (-1, 1000, 345))
     tom.color = 'this'
     tom.star()
+    tom.ngon(72)
 
     pyturtle.sleep(10)
     return 0

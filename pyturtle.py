@@ -1,24 +1,20 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """A simple turtle implementation in Python.
 
 This is intended for both interactive sessions and keyboard control.
 It came about when I was preparing a Python class and wanted to try a
 few things.
 """
-from __future__ import print_function
+__author__ = 'Kevin (penniesfromkevin@)'
+__copyright__ = 'Copyright (c) 2014-2022, Kevin'
 
 import argparse
 import logging
 import math
 import sys
-import time
 
 # http://www.pygame.org
 import pygame
-
-
-__author__ = 'Kevin (penniesfromkevin@)'
-__copyright__ = 'Copyright (c) 2014-2016, Kevin'
 
 
 LOG_LEVELS = ('CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG')
@@ -31,15 +27,21 @@ DEFAULT_SPEED = 4
 DEFAULT_ANGLE = 5
 DEFAULT_IMAGE = 'turtle.png'
 DEFAULT_LENGTH = 72
+MAX_SIDES = 72
+MIN_SIDES = 3
 THICKNESS_MAX = 20
 DEG_TO_RAD = 0.017453293  # Converts degrees to radians.
+# uh-oh; these below are not actually CONSTANT...
 COLORS = {
     'red': (255, 0, 0),
-    'green': (0, 255, 0),
-    'blue': (0, 0, 255),
+    'orange': (255, 205, 0),
     'yellow': (255, 255, 0),
-    'magenta': (255, 0, 255),
+    'brown': (205, 205, 0),
+    'green': (0, 255, 0),
     'cyan': (0, 255, 255),
+    'blue': (0, 0, 255),
+    'magenta': (255, 0, 255),
+    'pink': (255, 205, 205),
     'purple': (204, 0, 255),
     'white': (255, 255, 255),
     'black': (0, 0, 0),
@@ -104,6 +106,7 @@ class Turtle(pygame.sprite.Sprite):
         x_off = self.x_pos - self.width // 2
         y_off = self.y_pos - self.height // 2
         self.board.blit(self.image, (x_off, y_off))
+        pygame.event.pump()
         pygame.display.flip()
 
     def clear(self, bg_color=None):
@@ -125,8 +128,9 @@ class Turtle(pygame.sprite.Sprite):
         Args:
             degrees: Integer degrees.
         """
-        self.angle -= degrees
-        self.update()
+        self.right(-degrees)
+#        self.angle -= degrees
+#        self.update()
 
     def right(self, degrees=DEFAULT_ANGLE):
         """Rotates turtle clockwise.
@@ -204,6 +208,31 @@ class Turtle(pygame.sprite.Sprite):
         y_0 = y_0 // 2
         self.move_to(x_0, y_0)
 
+    def help_interactive(self):
+        """Show available interactive keys.
+        """
+        print('Possible interactive keys:')
+        print(' <cursor_left>: Rotate left.')
+        print(' <cursor_right>: Rotate right.')
+        print(' <cursor_up>: Move forward.')
+        print(' <space>: Set turtle angle to 0.')
+        print(' <comma>: Rotate left 90 degrees')
+        print(' <period>: Rotate right 90 degrees')
+        print()
+        print(' <cursor_down>: Toggle pen up/down.')
+        print(' <minus>: Reduce pen thickness.')
+        print(' <plus/equals>: Increase pen thickness.')
+        print()
+        print(' <escape>: Quit.')
+        print(' <backspace/delete>: Clear board.')
+        print(' p: Pause (whatever that means).')
+        print(' z: Cycle pen color.')
+        print(' a: Cycle background color.')
+        print(' 0: Reset turtle position to center of screen.')
+        print(' 3 through 9: n-gon.')
+        print(' c: Circle.')
+        print(' s: Star.')
+
     def get_input(self):
         """Get user input via events.
 
@@ -219,6 +248,8 @@ class Turtle(pygame.sprite.Sprite):
                     intent = 'quit'
                 elif event.key == pygame.K_p:
                     intent = 'pause'
+                elif event.key in (pygame.K_QUESTION, pygame.K_h):
+                    self.help_interactive()
 
                 elif event.key == pygame.K_LEFT:
                     if 'l' not in self._keys:
@@ -232,9 +263,9 @@ class Turtle(pygame.sprite.Sprite):
                 elif event.key == pygame.K_DOWN:
                     self.toggle_pen()
                 elif event.key == pygame.K_z:
-                    self.change_color()
+                    self.cycle_pen_color()
                 elif event.key == pygame.K_a:
-                    self.change_bg()
+                    self.cycle_bg_color()
 
                 elif event.key == pygame.K_COMMA:
                     self.left(90)
@@ -261,7 +292,7 @@ class Turtle(pygame.sprite.Sprite):
                 elif event.key == pygame.K_s:
                     self.star()
                 elif event.key == pygame.K_c:
-                    self.ngon(72)
+                    self.ngon(MAX_SIDES)
                 elif event.key in range(pygame.K_3, pygame.K_9 + 1):
                     sides = event.key - pygame.K_0
                     self.ngon(sides)
@@ -289,13 +320,13 @@ class Turtle(pygame.sprite.Sprite):
 
         return intent
 
-    def change_bg(self):
+    def cycle_bg_color(self):
         """Change the background color (by cycling it).
         """
         self.bg_color = self.cycle_color(self.bg_color)
         self.update()
 
-    def change_color(self):
+    def cycle_pen_color(self):
         """Change the current turtle color (by cycling it).
         """
         self.color = self.cycle_color()
@@ -324,24 +355,25 @@ class Turtle(pygame.sprite.Sprite):
         self.pen = not self.pen
         LOGGER.debug('toggle_pen: pen=%s', self.pen)
 
-    def ngon(self, sides=3, length=None):
-        """Draw an N-gon, from 3 to 72 sides.
+    def ngon(self, sides=MIN_SIDES, length=None):
+        """Draw an N-gon, from MIN_SIDES to MAX_SIDES sides.
 
         Drawing with a number of sides that does not divide evenly into
         360, such at 7, may result in less-than-perfect polygons.
 
         Args:
-            sides: Number of sides, from 3 to 72, inclusive.
+            sides: Number of sides (MIN_SIDES to MAX_SIDES, inclusive).
             length: Length of each side; if this is not set, the length
                 will be scaled based on speed.
         """
-        if sides > 72:
-            sides = 72
-        elif sides < 3:
-            sides = 3
+        if sides > MAX_SIDES:
+            sides = MAX_SIDES
+        elif sides < MIN_SIDES:
+            sides = MIN_SIDES
         angle = 360 // sides
         if not length:
-            length = int(self.speed * 36 / sides)
+#            length = int(self.speed * 36 / sides)
+            length = (self.speed * 36) // sides
         LOGGER.debug('ngon: sides=%s, length=%s', sides, length)
         self.repeat(sides, angle, length)
 
@@ -354,23 +386,19 @@ class Turtle(pygame.sprite.Sprite):
         LOGGER.debug('star: length=%s', length)
         self.repeat(5, 144, length)
 
-    def repeat(self, times, angle=144, length=DEFAULT_LENGTH, right=True):
+    def repeat(self, times, angle=144, length=DEFAULT_LENGTH):
         """Move and turn repeatedly.
 
         Args:
             times: How many times to do this.
-            angle: Integer angle to turn.
+            angle: Integer angle to turn; positive>right, negative>left
             length: Integer length to move.
-            right: Boolean; True for right turns, False for left turns.
         """
-        LOGGER.debug('repeat: times=%s, angle=%s, length=%s, right=%s',
-                     times, angle, length, right)
+        LOGGER.debug('repeat: times=%s, angle=%s, length=%s',
+                     times, angle, length)
         for _ in range(times):
             self.move(length)
-            if right:
-                self.right(angle)
-            else:
-                self.left(angle)
+            self.right(angle)
 
 
 def parse_args():
@@ -440,15 +468,12 @@ def sleep(seconds=1):
     LOGGER.info('sleep: Sleeping for %s seconds...', seconds)
     for index in range(seconds, 0, -1):
         LOGGER.debug(index)
-        time.sleep(1)
+        pygame.time.wait(1000)
 
 
 def start():
     """Initialize PyGame, and thus KPyturtle.
     """
-    args = parse_args()
-    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
-                        level=getattr(logging, args.loglevel))
     LOGGER.debug('start: Initializing KPyturtle.')
     pygame.init()
 
@@ -481,6 +506,9 @@ def main():
 
 
 if __name__ == '__main__':
+    ARGS = parse_args()
+    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
+                        level=getattr(logging, ARGS.loglevel))
     start()
     EXIT_CODE = main()
     end(EXIT_CODE)

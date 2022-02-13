@@ -4,6 +4,32 @@
 This is intended for both interactive sessions and keyboard control.
 It came about when I was preparing a Python class and wanted to try a
 few things.
+
+There are three ways PyTurtle can be used:
+1. Interactively using the cursor keys to move the turtle.
+   From the command line, simply call pyturtle as an application:
+   $ python3 pyturtle.py
+2. As a library so that the turtle can be programmed using Python.
+   Here are the commands that should be run when used as a library:
+     import pyturtle
+     pyturtle.start()
+     my_turtle = pyturtle.Turtle()
+     my_turtle.move(10)
+     pyturtle.end()
+   The .start() and .end() methods are required to manage turtles.
+3. Interactively using IDLE or a Python interactive session.
+   From inside IDLE (the Python interactive shell):
+     >>> import pyturtle
+     >>> pyturtle.start()
+     >>> my_turtle = pyturtle.Turtle()
+   At this point you can continue to control the turtle using Python.
+   To end the turtle session:
+     >>> pyturtle.end()
+   Because an event handler needs to be called every so often so that
+   PyGame knows that the application is alive, using PyTurtle in IDLE
+   will occasionally give you a you a warning such as:
+       "" is not responding.
+   In that case, simply ignore it or send another turtle command.
 """
 __author__ = 'Kevin (penniesfromkevin@)'
 __copyright__ = 'Copyright (c) 2014-2022, Kevin'
@@ -21,6 +47,78 @@ LOG_LEVELS = ('CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG')
 DEFAULT_LOG_LEVEL = LOG_LEVELS[3]
 LOGGER = logging.getLogger(__name__)
 
+HELP_INTERACTIVE = '''Interactive keys:
+  <cursor_left>: Rotate left.
+  <cursor_right>: Rotate right.
+  <cursor_up>: Move forward.
+  <backquote>: Set turtle angle to 0.
+  <comma>: Rotate left 90 degrees
+  <period>: Rotate right 90 degrees
+
+  <space>: Hide/show turtle graphic.
+  <cursor_down>: Toggle pen up/down.
+  <minus>: Reduce pen thickness.
+  <plus/equals>: Increase pen thickness.
+
+  <escape>: Quit.
+  <backspace>: Clear board.
+  p: Pause (whatever that means).
+  z: Cycle pen color.
+  a: Cycle background color.
+  r: Reset turtle position to center of screen, facing up.
+  3 through 9: n-gon.
+  0: Circle.
+  s: Star.
+
+  Also try <turtle_object>.help()
+'''
+HELP_TURTLE = '''Turtle object methods:
+  .clear(bg_color=None): Clear the board by filling with bg_color
+  .left(degrees=DEFAULT_ANGLE): Rotate left
+  .right(degrees=DEFAULT_ANGLE): Rotate right
+  .forward(units=1): Move forward (same as .move())
+  .move(units=1): Move forward
+  .backward(units=1): Move backward
+  .about_face(): Turn 180 degrees
+  .move_to(x_new, y_new): Move to an absolute position on the board
+  .pen_down(): Lower the pen so that the turtle can draw
+  .pen_up(): Lift the pen so that the turtle stops drawing
+  .show_turtle(): Show the turtle graphic on screen
+  .hide_turtle(): Hide the turtle graphic.
+  .reset(): Move turtle back to starting position (center, facing up)
+  .cycle_bg_color(): Change the background color to the next color
+  .cycle_pen_color(): Change the pen color to the next color
+  .cycle_color(color=None): Return the color after the given color
+  .toggle_pen(): Toggle pen position (up becomes down, down becomes up)
+  .ngon(sides=MIN_SIDES, length=None): Draw an n-gon
+  .star(length=DEFAULT_LENGTH): Draw a star
+  .repeat(times, angle=144, length=DEFAULT_LENGTH): Repeat rotate and move
+  .help(): Get this help text
+
+Turtle object attributes:
+  .pen: Boolean; whether pen is down (True) and can draw, or not (False)
+  .pen_size: Integer line thickness (1 to 20)
+  .visible: Boolean: whether the turtle is displayed on screen (True) or not
+  .angle: Integer degrees; orientation of the turtle object.
+  .bg_color: Background (board) color (see Colors, below)
+  .color: Pen color (see Colors, below)
+  .speed: Integer Turtle speed (how many pixels turtle moves in 1 unit)
+
+Colors (strings!):
+  'red': (255, 0, 0)
+  'brown': (205, 205, 0)
+  'orange': (255, 205, 0)
+  'yellow': (255, 255, 0)
+  'green': (0, 255, 0)
+  'cyan': (0, 255, 255)
+  'blue': (0, 0, 255)
+  'purple': (204, 0, 255)
+  'magenta': (255, 0, 255)
+  'pink': (255, 205, 205)
+  'white': (255, 255, 255)
+  'black': (0, 0, 0)
+'''
+
 FRAME_RATE = 20
 BOARD_SIZE = (640, 480)
 DEFAULT_SPEED = 4
@@ -34,15 +132,15 @@ DEG_TO_RAD = 0.017453293  # Converts degrees to radians.
 # uh-oh; these below are not actually CONSTANT...
 COLORS = {
     'red': (255, 0, 0),
+    'brown': (205, 205, 0),
     'orange': (255, 205, 0),
     'yellow': (255, 255, 0),
-    'brown': (205, 205, 0),
     'green': (0, 255, 0),
     'cyan': (0, 255, 255),
     'blue': (0, 0, 255),
+    'purple': (204, 0, 255),
     'magenta': (255, 0, 255),
     'pink': (255, 205, 205),
-    'purple': (204, 0, 255),
     'white': (255, 255, 255),
     'black': (0, 0, 0),
     }
@@ -51,11 +149,14 @@ COLORS = {
 class Turtle(pygame.sprite.Sprite):
     """Controllable turtle.
     """
-    def __init__(self, board=None, speed=DEFAULT_SPEED):
+    turtles = {}  # Keeps track of turtles (because there can be more than one)
+
+    def __init__(self, board=None, page=None, speed=DEFAULT_SPEED):
         """Initialize the turtle.
 
         Args:
-            board_size: Display surface size; tuple of (width, height).
+            board: Optional display surface; created if not provided
+            page: Optional page for drawing; created if not provided
             speed: Integer speed.  Movement multiplier.
         """
         pygame.sprite.Sprite.__init__(self)
@@ -65,61 +166,80 @@ class Turtle(pygame.sprite.Sprite):
         self.color = 'red'
         self.bg_color = 'black'
         self.speed = speed
-        self.thickness = 3
         self.pen = False
-        self.x_pos = self.y_pos = 0
+        self.pen_size = 3
+        self.visible = True
+        self.x_pos = 0
+        self.y_pos = 0
 
-        if board:
-            self.board = board
-        else:
-            self.board = pygame.display.set_mode(BOARD_SIZE)
+        # Everything blits onto board
+        self.board = board if board else pygame.display.set_mode(BOARD_SIZE)
+        # Page is a surface for drawing, which also blits onto board
+        self.page = page if page else pygame.Surface(self.board.get_size())
 
         try:
             image_object = pygame.image.load(DEFAULT_IMAGE).convert_alpha()
-        except pygame.error:
-            print('ERROR: Could not load image %s' % DEFAULT_IMAGE)
-            image_object = None
+        except (pygame.error, FileNotFoundError, NameError) as exc:
+            # If the image was not found, use an image made from text.
+            # This allows PyTurtle to be self-contained in a single file
+            LOGGER.error('Turtle: Image %s (%s)', DEFAULT_IMAGE, exc)
+            font = pygame.font.SysFont('Sans', 18)
+            image_object = font.render('A', True, COLORS['green'])
+
         self._image = self.image = image_object
         self.width, self.height = self.image.get_size()
         self.rect = self.image.get_rect()
-        self.page = None
 
+        if self.board in Turtle.turtles:
+            Turtle.turtles[self.board].append(self)
+            self.update()
+        else:
+            Turtle.turtles[self.board] = [self]
+            self.clear()
         self.reset()
-        self.clear()
+        self.pen = True
 
     def update(self):
-        """Update sprite.
+        """Update sprite, board, and page.
         """
-        while self.angle > 360:
-            self.angle -= 360
-        while self.angle < 0:
-            self.angle += 360
-
-        self.image = pygame.transform.rotate(self._image, -self.angle)
-        self.width, self.height = self.image.get_size()
-        self.rect = self.image.get_rect()
-        self.rect.center = self.x_pos, self.y_pos
-
+        pygame.event.pump()  # This needs to be called every so often
         self.board.fill(get_color(self.bg_color))
-        if self.page:
-            self.board.blit(self.page, (0, 0))
-        x_off = self.x_pos - self.width // 2
-        y_off = self.y_pos - self.height // 2
-        self.board.blit(self.image, (x_off, y_off))
-        pygame.event.pump()
+        self.board.blit(self.page, (0, 0))
+        for turtle in Turtle.turtles[self.board]:
+            self.update_turtle(turtle)
         pygame.display.flip()
+
+    def update_turtle(self, turtle):
+        """Update sprite only.
+        """
+        while turtle.angle > 360:
+            turtle.angle -= 360
+        while turtle.angle < 0:
+            turtle.angle += 360
+
+        turtle.image = pygame.transform.rotate(turtle._image, -turtle.angle)
+        turtle.width, turtle.height = turtle.image.get_size()
+        turtle.rect = turtle.image.get_rect()
+        turtle.rect.center = turtle.x_pos, turtle.y_pos
+
+        x_off = turtle.x_pos - turtle.width // 2
+        y_off = turtle.y_pos - turtle.height // 2
+        if turtle.visible:
+            turtle.board.blit(turtle.image, (x_off, y_off))
 
     def clear(self, bg_color=None):
         """Clear the draw page with the specified color.
+
+        Uses turtle's background color if bg_color is not specified.
 
         Args:
             bg_color: Name of a supported color to use as background.
         """
         if not bg_color:
             bg_color = self.bg_color
-        self.page = pygame.Surface(self.board.get_size())
-        self.page.set_colorkey(get_color(bg_color))
-        self.page.fill(get_color(bg_color))
+        rgb_color = get_color(bg_color)
+        self.page.set_colorkey(rgb_color)
+        self.page.fill(rgb_color)
         self.update()
 
     def left(self, degrees=DEFAULT_ANGLE):
@@ -129,8 +249,6 @@ class Turtle(pygame.sprite.Sprite):
             degrees: Integer degrees.
         """
         self.right(-degrees)
-#        self.angle -= degrees
-#        self.update()
 
     def right(self, degrees=DEFAULT_ANGLE):
         """Rotates turtle clockwise.
@@ -185,7 +303,7 @@ class Turtle(pygame.sprite.Sprite):
         if self.pen:
             color = get_color(self.color)
             pygame.draw.line(self.page, color, (self.x_pos, self.y_pos),
-                             (x_new, y_new), self.thickness)
+                             (x_new, y_new), self.pen_size)
         self.x_pos = x_new
         self.y_pos = y_new
         self.update()
@@ -200,38 +318,44 @@ class Turtle(pygame.sprite.Sprite):
         """
         self.pen = False
 
+    def toggle_pen(self):
+        """Toggle pen state.
+        """
+        self.pen = not self.pen
+        LOGGER.debug('toggle_pen: pen=%s', self.pen)
+
+    def show_turtle(self):
+        """Show turtle graphic on screen.
+        """
+        self.visible = True
+        self.update()
+
+    def hide_turtle(self):
+        """Hide turtle graphic (do NOT show on screen).
+        """
+        self.visible = False
+        self.update()
+
+    def toggle_show(self):
+        """Toggle turtle visibility.
+        """
+        self.visible = not self.visible
+        LOGGER.debug('toggle_show: visible=%s', self.visible)
+        self.update()
+
     def reset(self):
-        """Reset location.
+        """Reset location (center of board) and direction (facing up).
         """
         x_0, y_0 = self.board.get_size()
         x_0 = x_0 // 2
         y_0 = y_0 // 2
+        self.angle = 0
         self.move_to(x_0, y_0)
 
-    def help_interactive(self):
-        """Show available interactive keys.
+    def help(self):
+        """Get a list of methods the Turtle object supports.
         """
-        print('Possible interactive keys:')
-        print(' <cursor_left>: Rotate left.')
-        print(' <cursor_right>: Rotate right.')
-        print(' <cursor_up>: Move forward.')
-        print(' <space>: Set turtle angle to 0.')
-        print(' <comma>: Rotate left 90 degrees')
-        print(' <period>: Rotate right 90 degrees')
-        print()
-        print(' <cursor_down>: Toggle pen up/down.')
-        print(' <minus>: Reduce pen thickness.')
-        print(' <plus/equals>: Increase pen thickness.')
-        print()
-        print(' <escape>: Quit.')
-        print(' <backspace/delete>: Clear board.')
-        print(' p: Pause (whatever that means).')
-        print(' z: Cycle pen color.')
-        print(' a: Cycle background color.')
-        print(' 0: Reset turtle position to center of screen.')
-        print(' 3 through 9: n-gon.')
-        print(' c: Circle.')
-        print(' s: Star.')
+        help(HELP_TURTLE)
 
     def get_input(self):
         """Get user input via events.
@@ -249,7 +373,7 @@ class Turtle(pygame.sprite.Sprite):
                 elif event.key == pygame.K_p:
                     intent = 'pause'
                 elif event.key in (pygame.K_QUESTION, pygame.K_h):
-                    self.help_interactive()
+                    help()
 
                 elif event.key == pygame.K_LEFT:
                     if 'l' not in self._keys:
@@ -273,21 +397,23 @@ class Turtle(pygame.sprite.Sprite):
                     self.right(90)
 
                 elif event.key == pygame.K_SPACE:
+                    self.toggle_show()
+                elif event.key == pygame.K_BACKQUOTE:
                     self.angle = 0
                     self.update()
-                elif event.key == pygame.K_0:
-                    self.reset()
                 elif event.key == pygame.K_BACKSPACE:
-                    self.clear()
+                    self.clear(self.bg_color)
+                elif event.key == pygame.K_r:
+                    self.reset()
 
                 elif event.key == pygame.K_MINUS:
-                    self.thickness -= 1
-                    if self.thickness < 1:
-                        self.thickness = 1
+                    self.pen_size -= 1
+                    if self.pen_size < 1:
+                        self.pen_size = 1
                 elif event.key in (pygame.K_EQUALS, pygame.K_PLUS):
-                    self.thickness += 1
-                    if self.thickness > THICKNESS_MAX:
-                        self.thickness = THICKNESS_MAX
+                    self.pen_size += 1
+                    if self.pen_size > THICKNESS_MAX:
+                        self.pen_size = THICKNESS_MAX
 
                 elif event.key == pygame.K_s:
                     self.star()
@@ -296,6 +422,8 @@ class Turtle(pygame.sprite.Sprite):
                 elif event.key in range(pygame.K_3, pygame.K_9 + 1):
                     sides = event.key - pygame.K_0
                     self.ngon(sides)
+                elif event.key == pygame.K_0:
+                    self.ngon(MAX_SIDES)
 
                 else:
                     print('Unused KEYDOWN = %s' % event.key)
@@ -342,18 +470,13 @@ class Turtle(pygame.sprite.Sprite):
         """
         if not color:
             color = self.color
-        color_names = sorted(COLORS.keys())
+        color_names = list(COLORS.keys())
+#        color_names = sorted(COLORS.keys())
         index = color_names.index(color) + 1
         if index >= len(color_names):
             index = 0
         new_color = color_names[index]
         return new_color
-
-    def toggle_pen(self):
-        """Toggle pen state.
-        """
-        self.pen = not self.pen
-        LOGGER.debug('toggle_pen: pen=%s', self.pen)
 
     def ngon(self, sides=MIN_SIDES, length=None):
         """Draw an N-gon, from MIN_SIDES to MAX_SIDES sides.
@@ -372,7 +495,6 @@ class Turtle(pygame.sprite.Sprite):
             sides = MIN_SIDES
         angle = 360 // sides
         if not length:
-#            length = int(self.speed * 36 / sides)
             length = (self.speed * 36) // sides
         LOGGER.debug('ngon: sides=%s, length=%s', sides, length)
         self.repeat(sides, angle, length)
@@ -407,12 +529,21 @@ def parse_args():
     Returns:
         Parser object with arguments as attributes.
     """
-    parser = argparse.ArgumentParser(description='KPyTurtle.')
+    parser = argparse.ArgumentParser(description='PyTurtle.')
     parser.add_argument(
         '-L', '--loglevel', choices=LOG_LEVELS, default=DEFAULT_LOG_LEVEL,
         help='Set the logging level.')
     args = parser.parse_args()
     return args
+
+
+def help(help_text=HELP_INTERACTIVE):
+    """Show available help in two modes, interactive and methods.
+
+    Args:
+        help_text: One of the CONSTANT help text blocks
+    """
+    print(help_text)
 
 
 def add_color(color_name, rgb_triplet):
@@ -472,9 +603,9 @@ def sleep(seconds=1):
 
 
 def start():
-    """Initialize PyGame, and thus KPyturtle.
+    """Initialize PyGame, and thus Pyturtle.
     """
-    LOGGER.debug('start: Initializing KPyturtle.')
+    LOGGER.debug('start: Initializing Pyturtle.')
     pygame.init()
 
 
@@ -484,7 +615,7 @@ def end(exit_code=0):
     Args:
         exit_code: Numeric exit code from 0 to 255 (0 is clean exit).
     """
-    LOGGER.debug('end: Ending KPyturtle.')
+    LOGGER.debug('end: Ending Pyturtle.')
     pygame.quit()
     sys.exit(exit_code)
 
